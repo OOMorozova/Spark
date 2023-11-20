@@ -1,0 +1,10 @@
+[0m[[0m[0mdebug[0m] [0m[0mCopy resource mappings: [0m
+[0m[[0m[0mdebug[0m] [0m[0m	(/Users/omorozova/IdeaProjects/Spark/src/main/resources/mall_customers.csv,/Users/omorozova/IdeaProjects/Spark/target/scala-2.13/classes/mall_customers.csv)[0m
+[0m[[0m[0mdebug[0m] [0m[0m	(/Users/omorozova/IdeaProjects/Spark/src/main/resources/restaurant_ex.json,/Users/omorozova/IdeaProjects/Spark/target/scala-2.13/classes/restaurant_ex.json)[0m
+[0m[[0m[0mdebug[0m] [0m[0m	(/Users/omorozova/IdeaProjects/Spark/src/main/resources/restaurant.json,/Users/omorozova/IdeaProjects/Spark/target/scala-2.13/classes/restaurant.json)[0m
+[0m[[0m[0mdebug[0m] [0m[0m	(/Users/omorozova/IdeaProjects/Spark/src/main/resources/subtitles_s1.json,/Users/omorozova/IdeaProjects/Spark/target/scala-2.13/classes/subtitles_s1.json)[0m
+[0m[[0m[0mdebug[0m] [0m[0m	(/Users/omorozova/IdeaProjects/Spark/src/main/resources/bike_sharing.csv,/Users/omorozova/IdeaProjects/Spark/target/scala-2.13/classes/bike_sharing.csv)[0m
+[0m[[0m[0mdebug[0m] [0m[0m	(/Users/omorozova/IdeaProjects/Spark/src/main/resources/movies_on_netflix.csv,/Users/omorozova/IdeaProjects/Spark/target/scala-2.13/classes/movies_on_netflix.csv)[0m
+[0m[[0m[0mdebug[0m] [0m[0m	(/Users/omorozova/IdeaProjects/Spark/src/main/resources/subtitles_s2.json,/Users/omorozova/IdeaProjects/Spark/target/scala-2.13/classes/subtitles_s2.json)[0m
+[0m[[0m[0mdebug[0m] [0m[0m	(/Users/omorozova/IdeaProjects/Spark/src/main/resources/iris.json,/Users/omorozova/IdeaProjects/Spark/target/scala-2.13/classes/iris.json)[0m
+[0m[[0m[0mdebug[0m] [0m[0m	(/Users/omorozova/IdeaProjects/Spark/src/main/resources/topspotify.csv,/Users/omorozova/IdeaProjects/Spark/target/scala-2.13/classes/topspotify.csv)[0m
