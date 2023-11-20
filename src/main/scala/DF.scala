@@ -1,7 +1,7 @@
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-
+//Напишите код, служащий для создания датафрейма, описывающего трендовые видео.
 object DF extends App {
   val spark = SparkSession.builder()
     .appName("2_1_DFs")
