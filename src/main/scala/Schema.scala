@@ -1,4 +1,7 @@
 import org.apache.spark.sql.types._
+// Предоставьте на проверку код, выполняющий загрузку данных из файла
+// данные в колонках is_delivering_now и has_online_delivery должны в конечном итоге иметь тип IntegerType
+// в коде предусмотрите возможность наглядной демонстрации выполнения данного условия.
 object Schema extends App with Context {
   override val appName: String = "2_1_Schema"
 
