@@ -23,6 +23,35 @@ object playground extends App {
 
   newDF.show(2)
 
+  val bikes = bikeSharingDF.select("*").count()
+  println(s"number of records $bikes")
+  val distinctEntries = bikeSharingDF.select("HOLIDAY").distinct().count()
+  println(s"distinct values in column HOLIDAYS  $distinctEntries") // distinct values in column HOLIDAYS  2
+  val bikesWithColumnRenamed = bikeSharingDF.withColumnRenamed("TEMPERATURE", "Temp")
+  bikesWithColumnRenamed.show(3)
+  bikeSharingDF.drop("Date", "Hour").show(3)
+  bikeSharingDF
+    .withColumn(
+      "is_holiday",
+      when(col("HOLIDAY") === "No Holiday", false)
+        .when(col("HOLIDAY") === "Holiday", true)
+        .otherwise(null)
+    ).show(3)
+
+  bikeSharingDF
+    .groupBy("Date")
+    .agg(
+      sum("RENTED_BIKE_COUNT").as("bikes_total"))
+    .orderBy("Date")
+    .show(3)
+
+  val res = bikeSharingDF
+    .filter(col("RENTED_BIKE_COUNT")===254)
+    .filter(col("TEMPERATURE")>0).count()
+
+  println("Answer", res)
+
+
   //iris
   val iris = spark.read
     .format("json")
