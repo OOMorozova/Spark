@@ -1,7 +1,8 @@
 *.class
 *.log
-src/main/resources
 target/
+target
+project
 .idea
 .bsp
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
