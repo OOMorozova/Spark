@@ -8,6 +8,16 @@ object playground extends App {
         .master("local")
         .getOrCreate()
    val sc = spark.sparkContext
+  //join
+  val valuesDF = spark.read
+    .option("inferSchema", "true")
+    .option("header", "true")
+    .csv("src/main/resources/stack_link_value.csv")
+  val tagsDF = spark.read
+    .option("inferSchema", "true")
+    .option("header", "true")
+    .csv("src/main/resources/stack_links.csv")
+
 //functions
   val bikeSharingDF = spark.read.format("csv").option("header", "true").load("src/main/resources/bike_sharing.csv")
 
