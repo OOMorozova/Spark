@@ -1,11 +1,11 @@
 *.class
 *.log
 /target
-project
+/project
 /src/main/resources/data
 /src/test/scala/test.scala
 /src/test/scala/work.sc
-.idea
-.bsp
+/.idea
+/.bsp
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
