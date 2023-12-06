@@ -2,7 +2,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.SaveMode
 // надеюсь, что верно поняла, что удалять Gender не нужно))
-object mall_customers extends App with Context {
+object MallCustomers extends App with Context {
   override val appName: String = "2_5_Practice_1"
 
   val Schema = StructType(Seq(
@@ -19,7 +19,9 @@ object mall_customers extends App with Context {
     .schema(Schema)
     .load("src/main/resources/mall_customers.csv")
 
-  val isMale = when(lower(col("Gender")) === lit("male"), lit(1)).otherwise(lit("0"))
+  val isMale = when(lower(col("Gender")) === lit("male"), lit(1))
+    .when(lower(col("Gender")) === lit("female"), lit(0))
+    .otherwise(lit(-1))
 
   val incomeDF = (
     mallDF
@@ -28,7 +30,7 @@ object mall_customers extends App with Context {
       .groupBy(col("Gender"), col("Age"))
       .agg(round(avg(col("Annual Income (k$)")), 1).as("AVG Annual Income (k$)"))
       .sort(col("Gender"), col("Age"))
-      .withColumn("gender_code", isMale) //.cast(IntegerType) - не нужно?
+      .withColumn("gender_code", isMale)
     )
 
   incomeDF.show()
