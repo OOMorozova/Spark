@@ -2,7 +2,8 @@
 *.log
 /target
 /project
-/src/main/resources/data
+/resources/data
+/src/main/resources
 /src/test/scala/test.scala
 /src/test/scala/work.sc
 /.idea
