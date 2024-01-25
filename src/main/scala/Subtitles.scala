@@ -2,6 +2,13 @@ import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 
+//  для каждого сезона найти топ-20 самых часто используемых слов
+//  результаты расчетов объединить в общий датафрейм
+//  w_s1 - колонка, содержащая слова из первого сезона;
+//   w_s2 - колонка, содержащая слова из второго сезона;
+//  в cnt_s1 и cnt_s2  - данные о том, сколько раз слово встретилось в субтитрах для первого (cnt_s1) и второго сезона (cnt_s2) ;
+//  колонка id  содержит числа от 0 до 19 включительно
+//  результирующий датафрейм должен быть сохранен в json файл
 object Subtitles extends App with Context {
   override val appName: String = "2_5_Practice_2"
 
