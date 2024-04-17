@@ -1,5 +1,5 @@
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{Column, DataFrame, Dataset, Encoder, Encoders}
+import org.apache.spark.sql.{Column, DataFrame, Dataset, DatasetHolder, Encoder, Encoders}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.expressions._
 
@@ -162,6 +162,7 @@ object AiJobsIndustry extends App with Context {
   import spark.implicits._
   val aiJobsIndustryDS = aiJobsIndustryDF.as[JobsIndustry]
 
+
   case class JobIndustryNum(
                              JobTitle: String,
                              Company: String,
@@ -193,36 +194,69 @@ object AiJobsIndustry extends App with Context {
                         countReviews: Int
                       )
 
+  def findLeader(key: JobIndustryNum => String)(ds: Dataset[JobIndustryNum]) = {
+      ds.groupByKey(key)
+      .agg(new Aggregator[JobIndustryNum, Int, Int] {
+        // с чего начинаем вычисления
+        override def zero: Int = 0
 
+        //вычисление промежуточных результатов
+        override def reduce(b: Int, a: JobIndustryNum): Int = b + a.NumReviews
+
+        // объединяем промежуточные результаты, полученные в разных партициях
+        override def merge(b1: Int, b2: Int): Int = b1 + b2
+
+        // финальный результат
+        override def finish(reduction: Int): Int = reduction
+
+        override def bufferEncoder: Encoder[Int] = Encoders.scalaInt
+
+        //если, например, в качестве выходного типа используется case class IndustryLeader,
+        //то код будет следующий
+        // override def outputEncoder: Encoder[IndustryLeader] = Encoders.product[IndustryLeader]
+        override def outputEncoder: Encoder[Int] = Encoders.scalaInt
+      }
+        .toColumn.name("countReviews")
+      ).map(r => GroupInfo(r._1, r._2))
+      .orderBy(desc("countReviews"))
+      .limit(1)
+//    ds
+//      .groupByKey(key)
+//      .mapGroups { (name, iter) =>
+//        val numTotal = iter.map(r => r.NumReviews).sum
+//        GroupInfo(name, numTotal)
+//      }
+//      .orderBy(desc("countReviews"))
+//      .limit(1)
+  }
   val companyDS = ds1
-    .groupByKey(_.Company)
-    .mapGroups { (name, iter) =>
-      val numTotal = iter.map(r => r.NumReviews).sum
-      GroupInfo(name, numTotal)
-    }
-    .orderBy(desc("countReviews"))
-    .limit(1)
+    .transform(findLeader(_.Company))
 
   case class NameLocInfo(
                         name: String,
                         location: String,
                         count: Int
                       )
+  def join2Ds(ds2: Dataset[GroupInfo], joinCol: String)(ds1: Dataset[JobIndustryNum]) = {
+    ds1.joinWith(
+        ds2,
+        ds1.col(joinCol) === ds2.col("name"),
+        "inner"
+      )
+      .map(record =>
+        JobIndustryNum(
+          record._1.JobTitle,
+          record._1.Company,
+          record._1.Location,
+          record._1.NumReviews
+        )
+      )
+
+  }
+
 
   val companyLocDS = ds1
-    .joinWith(
-      companyDS.as("ds2"),
-      col("ds1.Company") === col("ds2.name"),
-      "inner"
-    )
-    .map(record =>
-      JobIndustryNum(
-        record._1.JobTitle,
-        record._1.Company,
-        record._1.Location,
-        record._1.NumReviews
-      )
-    )
+    .transform(join2Ds(companyDS, "Company"))
     .groupByKey(gr => (gr.Company, gr.Location))
     .mapGroups { (name, iter) =>
       val numTotal = Option(iter.map(r => r.NumReviews).sum).getOrElse(0)
@@ -269,44 +303,11 @@ object AiJobsIndustry extends App with Context {
     )
 
   val jobDS = ds1
-    .groupByKey(_.JobTitle)
-    .agg(new Aggregator[JobIndustryNum, Int, Int] {
-      // с чего начинаем вычисления
-      override def zero: Int = 0
-      //вычисление промежуточных результатов
-      override def reduce(b: Int, a: JobIndustryNum): Int = b + a.NumReviews
-      // объединяем промежуточные результаты, полученные в разных партициях
-      override def merge(b1: Int, b2: Int): Int = b1 + b2
-      // финальный результат
-      override def finish(reduction: Int): Int = reduction
-
-      override def bufferEncoder: Encoder[Int] = Encoders.scalaInt
-
-      //если, например, в качестве выходного типа используется case class IndustryLeader,
-      //то код будет следующий
-      // override def outputEncoder: Encoder[IndustryLeader] = Encoders.product[IndustryLeader]
-      override def outputEncoder: Encoder[Int] = Encoders.scalaInt
-    }
-      .toColumn.name("countReviews")
-    )
-    .orderBy(desc("countReviews"))
-    .limit(1)
+    .transform(findLeader(_.JobTitle))
 
 
   val jobLocDS = ds1
-    .joinWith(
-      jobDS.as("ds2"),
-      col("ds1.JobTitle") === col("ds2.key"),
-      "inner"
-    )
-    .map(record =>
-      JobIndustryNum(
-        record._1.JobTitle,
-        record._1.Company,
-        record._1.Location,
-        record._1.NumReviews
-      )
-    )
+    .transform(join2Ds(jobDS, "JobTitle"))
     .groupByKey(gr => (gr.JobTitle, gr.Location))
     .mapGroups { (name, iter) =>
       val numTotal = Option(iter.map(r => r.NumReviews).sum).getOrElse(0)
