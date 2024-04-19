@@ -170,31 +170,47 @@ object AiJobsIndustry extends App with Context {
                              NumReviews: Int
                            )
 
-  def extractNumDS(line: JobsIndustry): JobIndustryNum = {
-    val strReviews = Option(line.CompanyReviews.split("\\s").head).getOrElse(0)
-    val numReviews = strReviews.toString.replaceAll("\\D","").toInt
-    JobIndustryNum(line.JobTitle, line.Company, line.Location, numReviews)
+  def extractIntRewiew(CompanyReviews: String): Integer = {
+    val strReviews = Option(CompanyReviews.split("\\s").head).getOrElse(0)
+    strReviews.toString.replaceAll("\\D", "").toInt
+  }
+  def extractNumDS(ds: Dataset[JobsIndustry]):  Dataset[JobIndustryNum] = {
+    ds.map(line => {
+      JobIndustryNum(line.JobTitle,
+        line.Company,
+        line.Location,
+        extractIntRewiew(line.CompanyReviews))
+    }
+    )
+  }
+
+  def filterNull(ds: Dataset[JobsIndustry]): Dataset[JobsIndustry] = {
+    ds.filter(s =>
+      s.Company != null &&
+        s.JobTitle != null &&
+        s.Location != null &&
+        s.CompanyReviews != null &&
+        s.Link != null)
+  }
+
+  def filterDuplicates(ds: Dataset[JobsIndustry]): Dataset[JobsIndustry] = {
+    ds.dropDuplicates(Seq("Company", "JobTitle", "Link"))
   }
 
 
- val ds1 = (aiJobsIndustryDS
-   .filter(s =>
-       s.Company != null &&
-       s.JobTitle != null &&
-       s.Location != null &&
-       s.CompanyReviews != null &&
-       s.Link != null)
-   .dropDuplicates(Seq("Company", "JobTitle", "Link"))
-   .map(line => extractNumDS(line))
+ val ds1 = aiJobsIndustryDS
+   .transform(filterNull)
+   .transform(filterDuplicates)
+   .transform(extractNumDS)
    .as("ds1")
-   )
+
 
   case class GroupInfo(
                         name: String,
                         countReviews: Int
                       )
 
-  def findLeader(key: JobIndustryNum => String)(ds: Dataset[JobIndustryNum]) = {
+  def findLeader(key: JobIndustryNum => String)(ds: Dataset[JobIndustryNum]): Dataset[GroupInfo]  = {
       ds.groupByKey(key)
       .agg(new Aggregator[JobIndustryNum, Int, Int] {
         // с чего начинаем вычисления
@@ -220,15 +236,8 @@ object AiJobsIndustry extends App with Context {
       ).map(r => GroupInfo(r._1, r._2))
       .orderBy(desc("countReviews"))
       .limit(1)
-//    ds
-//      .groupByKey(key)
-//      .mapGroups { (name, iter) =>
-//        val numTotal = iter.map(r => r.NumReviews).sum
-//        GroupInfo(name, numTotal)
-//      }
-//      .orderBy(desc("countReviews"))
-//      .limit(1)
   }
+
   val companyDS = ds1
     .transform(findLeader(_.Company))
 
@@ -255,6 +264,7 @@ object AiJobsIndustry extends App with Context {
   }
 
 
+
   val companyLocDS = ds1
     .transform(join2Ds(companyDS, "Company"))
     .groupByKey(gr => (gr.Company, gr.Location))
@@ -268,6 +278,7 @@ object AiJobsIndustry extends App with Context {
                      count_max: Int,
                      count_min: Int
                     )
+
 
   val aggCompanyDS = companyLocDS
     .groupByKey(_.name)
@@ -285,22 +296,34 @@ object AiJobsIndustry extends App with Context {
                        count_type: String
                       )
 
-  val statsCompanyDS = aggCompanyDS.as("ds2")
-    .joinWith(companyLocDS.as("ds1"),
-      col("ds1.name") === col("ds2.name") &&
-        (col("ds1.count") === col("ds2.count_min") ||
-        col("ds1.count") === col("ds2.count_max")),
-    "inner")
-    .map(record => {
-      val count_type = if (record._1.count_max == record._2.count) "max" else "min"
+  def joinWithAgg(ds2: Dataset[NameLocInfo])(ds1: Dataset[AggInfo]): Dataset[(AggInfo, NameLocInfo)]  = {
+    ds1.as("ds1").joinWith(ds2.as("ds2"),
+      col("ds2.name") === col("ds1.name") &&
+        (col("ds2.count") === col("ds1.count_min") ||
+          col("ds2.count") === col("ds1.count_max")),
+      "inner")
+  }
+
+  def countType(count_max: Int, count: Int): String = {
+    if (count_max == count) "max"
+    else "min"
+  }
+
+  def selectStatInfo(ds: Dataset[(AggInfo, NameLocInfo)]): Dataset[StatsInfo] = {
+    ds.map(record =>
       StatsInfo(
         record._2.name,
         "company",
         Array(record._2.location),
         record._2.count,
-        count_type
-      )}
+        countType(record._1.count_max, record._2.count)
+      )
     )
+  }
+
+  val statsCompanyDS = aggCompanyDS
+    .transform(joinWithAgg(companyLocDS))
+    .transform(selectStatInfo)
 
   val jobDS = ds1
     .transform(findLeader(_.JobTitle))
@@ -324,23 +347,9 @@ object AiJobsIndustry extends App with Context {
       AggInfo(name, maxCount, minCount)
     }
 
-  val statsJobDS = aggJobDS.as("ds2")
-    .joinWith(
-      jobLocDS.as("ds1"),
-      col("ds1.name") === col("ds2.name") &&
-        (col("ds1.count") === col("ds2.count_min") ||
-          col("ds1.count") === col("ds2.count_max")),
-      "inner")
-    .map(record => {
-      val count_type = if (record._1.count_max == record._2.count) "max" else "min"
-      StatsInfo(
-        record._2.name,
-        "job",
-        Array(record._2.location),
-        record._2.count,
-        count_type
-      )
-    })
+  val statsJobDS = aggJobDS
+    .transform(joinWithAgg(jobLocDS))
+    .transform(selectStatInfo)
 
   val statsDS = statsJobDS
     .unionByName(statsCompanyDS)
