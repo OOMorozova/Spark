@@ -3,6 +3,8 @@ import org.apache.spark.sql.{Column, DataFrame, Dataset, DatasetHolder, Encoder,
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.expressions._
 
+import scala.Int.MaxValue
+
 
 object AiJobsIndustry extends App with Context {
   override val appName: String = "3_2_Transform_1"
@@ -279,15 +281,52 @@ object AiJobsIndustry extends App with Context {
                      count_min: Int
                     )
 
+  def findMinMaxCount(key: NameLocInfo => String)(ds: Dataset[NameLocInfo]): Dataset[AggInfo] = {
+    ds.groupByKey(key)
+      .agg(
+        new Aggregator[NameLocInfo, Int, Int] {
+        // с чего начинаем вычисления
+        override def zero: Int = 0
+
+        //вычисление промежуточных результатов
+        override def reduce(b: Int, a: NameLocInfo): Int = if (a.count > b) a.count else b
+
+        // объединяем промежуточные результаты, полученные в разных партициях
+        override def merge(b1: Int, b2: Int): Int = if (b1 > b2) b1 else b2
+
+        // финальный результат
+        override def finish(reduction: Int): Int = reduction
+
+        override def bufferEncoder: Encoder[Int] = Encoders.scalaInt
+
+        override def outputEncoder: Encoder[Int] = Encoders.scalaInt
+      }
+        .toColumn.name("count_max"),
+        new Aggregator[NameLocInfo, Int, Int] {
+          // с чего начинаем вычисления
+          override def zero: Int = MaxValue
+
+          //вычисление промежуточных результатов
+          override def reduce(b: Int, a: NameLocInfo): Int = if (b < a.count) b else a.count
+
+          // объединяем промежуточные результаты, полученные в разных партициях
+          override def merge(b1: Int, b2: Int): Int = if (b1 < b2) b1 else b2
+
+          // финальный результат
+          override def finish(reduction: Int): Int = reduction
+
+          override def bufferEncoder: Encoder[Int] = Encoders.scalaInt
+
+          override def outputEncoder: Encoder[Int] = Encoders.scalaInt
+        }
+          .toColumn.name("count_min")
+      )
+      .map(r => AggInfo(r._1, r._2, r._3))
+  }
+
 
   val aggCompanyDS = companyLocDS
-    .groupByKey(_.name)
-    .mapGroups { (name, iter) =>
-      val buffer = iter.map(r => r.count).toSeq
-      val maxCount = Option(buffer.max).getOrElse(0)
-      val minCount = Option(buffer.min).getOrElse(0)
-      AggInfo(name, maxCount, minCount)
-    }
+    .transform(findMinMaxCount(_.name))
 
   case class StatsInfo(name: String,
                        stats_type: String,
@@ -328,7 +367,6 @@ object AiJobsIndustry extends App with Context {
   val jobDS = ds1
     .transform(findLeader(_.JobTitle))
 
-
   val jobLocDS = ds1
     .transform(join2Ds(jobDS, "JobTitle"))
     .groupByKey(gr => (gr.JobTitle, gr.Location))
@@ -339,31 +377,29 @@ object AiJobsIndustry extends App with Context {
 
 
   val aggJobDS = jobLocDS
-    .groupByKey(_.name)
-    .mapGroups { (name, iter) =>
-      val buffer = iter.map(r => r.count).toSeq
-      val maxCount = Option(buffer.max).getOrElse(0)
-      val minCount = Option(buffer.min).getOrElse(0)
-      AggInfo(name, maxCount, minCount)
-    }
+    .transform(findMinMaxCount(_.name))
 
   val statsJobDS = aggJobDS
     .transform(joinWithAgg(jobLocDS))
     .transform(selectStatInfo)
 
+  def groupWithCollect(ds: Dataset[StatsInfo]): Dataset[StatsInfo] = {
+    ds.groupByKey(rec => (rec.name, rec.stats_type, rec.count, rec.count_type))
+      .mapGroups { (seq, iter) =>
+        val collectCol = iter.flatMap(_.location).toArray
+        StatsInfo(
+          seq._1,
+          seq._2,
+          collectCol,
+          seq._3,
+          seq._4
+        )
+      }
+  }
+
   val statsDS = statsJobDS
     .unionByName(statsCompanyDS)
-    .groupByKey(rec => (rec.name, rec.stats_type, rec.count, rec.count_type))
-    .mapGroups { (seq, iter) =>
-      val collectCol =  iter.flatMap(_.location).toArray
-      StatsInfo(
-        seq._1,
-        seq._2,
-        collectCol,
-        seq._3,
-        seq._4
-      )
-    }
+    .transform(groupWithCollect)
 
 
   statsDS.show(20, false)
