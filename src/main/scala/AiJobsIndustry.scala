@@ -403,7 +403,7 @@ object AiJobsIndustry extends App with Context {
 
 
   statsDS.show(20, false)
-  statsDF.show(20, false)
+//  statsDF.show(20, false)
   spark.stop()
 
 }
