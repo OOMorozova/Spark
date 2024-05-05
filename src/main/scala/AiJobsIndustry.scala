@@ -229,9 +229,6 @@ object AiJobsIndustry extends App with Context {
 
         override def bufferEncoder: Encoder[Int] = Encoders.scalaInt
 
-        //если, например, в качестве выходного типа используется case class IndustryLeader,
-        //то код будет следующий
-        // override def outputEncoder: Encoder[IndustryLeader] = Encoders.product[IndustryLeader]
         override def outputEncoder: Encoder[Int] = Encoders.scalaInt
       }
         .toColumn.name("countReviews")
@@ -248,7 +245,7 @@ object AiJobsIndustry extends App with Context {
                         location: String,
                         count: Int
                       )
-  def join2Ds(ds2: Dataset[GroupInfo], joinCol: String)(ds1: Dataset[JobIndustryNum]) = {
+  def join2Ds(ds2: Dataset[GroupInfo], joinCol: String)(ds1: Dataset[JobIndustryNum]): Dataset[JobIndustryNum] = {
     ds1.joinWith(
         ds2,
         ds1.col(joinCol) === ds2.col("name"),
@@ -265,16 +262,29 @@ object AiJobsIndustry extends App with Context {
 
   }
 
+  def findNumTotal(key: JobIndustryNum => (String, String))(ds: Dataset[JobIndustryNum]): Dataset[NameLocInfo] = {
+    ds.groupByKey(key)
+      .agg(new Aggregator[JobIndustryNum, Int, Int] {
 
+        override def zero: Int = 0
+
+        override def reduce(b: Int, a: JobIndustryNum): Int = b + a.NumReviews
+
+        override def merge(b1: Int, b2: Int): Int = b1 + b2
+
+        override def finish(reduction: Int): Int = reduction
+
+        override def bufferEncoder: Encoder[Int] = Encoders.scalaInt
+
+        override def outputEncoder: Encoder[Int] = Encoders.scalaInt
+      }
+        .toColumn.name("numTotal")
+      ).map(r => NameLocInfo(r._1._1, r._1._2, r._2))
+  }
 
   val companyLocDS = ds1
     .transform(join2Ds(companyDS, "Company"))
-    .groupByKey(gr => (gr.Company, gr.Location))
-    .mapGroups { (name, iter) =>
-      val numTotal = Option(iter.map(r => r.NumReviews).sum).getOrElse(0)
-      NameLocInfo(name._1, name._2, numTotal)
-    }
-
+    .transform(findNumTotal(gr => (gr.Company, gr.Location)))
 
   case class AggInfo(name: String,
                      count_max: Int,
@@ -285,16 +295,12 @@ object AiJobsIndustry extends App with Context {
     ds.groupByKey(key)
       .agg(
         new Aggregator[NameLocInfo, Int, Int] {
-        // с чего начинаем вычисления
         override def zero: Int = 0
 
-        //вычисление промежуточных результатов
         override def reduce(b: Int, a: NameLocInfo): Int = if (a.count > b) a.count else b
 
-        // объединяем промежуточные результаты, полученные в разных партициях
         override def merge(b1: Int, b2: Int): Int = if (b1 > b2) b1 else b2
 
-        // финальный результат
         override def finish(reduction: Int): Int = reduction
 
         override def bufferEncoder: Encoder[Int] = Encoders.scalaInt
@@ -303,16 +309,11 @@ object AiJobsIndustry extends App with Context {
       }
         .toColumn.name("count_max"),
         new Aggregator[NameLocInfo, Int, Int] {
-          // с чего начинаем вычисления
           override def zero: Int = MaxValue
-
-          //вычисление промежуточных результатов
           override def reduce(b: Int, a: NameLocInfo): Int = if (b < a.count) b else a.count
 
-          // объединяем промежуточные результаты, полученные в разных партициях
           override def merge(b1: Int, b2: Int): Int = if (b1 < b2) b1 else b2
 
-          // финальный результат
           override def finish(reduction: Int): Int = reduction
 
           override def bufferEncoder: Encoder[Int] = Encoders.scalaInt
@@ -348,11 +349,11 @@ object AiJobsIndustry extends App with Context {
     else "min"
   }
 
-  def selectStatInfo(ds: Dataset[(AggInfo, NameLocInfo)]): Dataset[StatsInfo] = {
+  def selectStatInfo(stat_type: String)(ds: Dataset[(AggInfo, NameLocInfo)]): Dataset[StatsInfo] = {
     ds.map(record =>
       StatsInfo(
         record._2.name,
-        "company",
+        stat_type,
         Array(record._2.location),
         record._2.count,
         countType(record._1.count_max, record._2.count)
@@ -362,26 +363,21 @@ object AiJobsIndustry extends App with Context {
 
   val statsCompanyDS = aggCompanyDS
     .transform(joinWithAgg(companyLocDS))
-    .transform(selectStatInfo)
+    .transform(selectStatInfo("company"))
 
   val jobDS = ds1
     .transform(findLeader(_.JobTitle))
 
   val jobLocDS = ds1
     .transform(join2Ds(jobDS, "JobTitle"))
-    .groupByKey(gr => (gr.JobTitle, gr.Location))
-    .mapGroups { (name, iter) =>
-      val numTotal = Option(iter.map(r => r.NumReviews).sum).getOrElse(0)
-      NameLocInfo(name._1, name._2, numTotal)
-    }
-
+    .transform(findNumTotal(gr => (gr.JobTitle, gr.Location)))
 
   val aggJobDS = jobLocDS
     .transform(findMinMaxCount(_.name))
 
   val statsJobDS = aggJobDS
     .transform(joinWithAgg(jobLocDS))
-    .transform(selectStatInfo)
+    .transform(selectStatInfo("job"))
 
   def groupWithCollect(ds: Dataset[StatsInfo]): Dataset[StatsInfo] = {
     ds.groupByKey(rec => (rec.name, rec.stats_type, rec.count, rec.count_type))
