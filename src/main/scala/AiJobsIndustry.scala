@@ -1,5 +1,5 @@
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{Column, DataFrame, Dataset, DatasetHolder, Encoder, Encoders}
+import org.apache.spark.sql.{Column, DataFrame, Dataset, Encoder, Encoders}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.expressions._
 
@@ -13,7 +13,7 @@ object AiJobsIndustry extends App with Context {
   val aiJobsIndustryDF: DataFrame = spark.read
     .option("header", "true")
     .option("inferSchema", "true")
-    .option ("multiLine", true)
+    .option ("multiLine", value = true)
     .csv("src/main/resources/AiJobsIndustry.csv")
 
   def dropNulls(df: DataFrame) = {
@@ -42,9 +42,8 @@ object AiJobsIndustry extends App with Context {
   def join2Df(df1: DataFrame, joinCol: String)(df2: DataFrame): DataFrame = {
     val joinCondition = df1.col(joinCol)===df2.col(joinCol)
 
-    (df2.as("df2")
+    df2.as("df2")
       .join(df1.as("df1"), joinCondition, "inner")
-      )
   }
 
   def extractReviewCount(groupCol1: String, groupCol2: String)(df: DataFrame): DataFrame = {
@@ -66,16 +65,15 @@ object AiJobsIndustry extends App with Context {
       (df1.col("count") === df2.col("count_min") ||
         df1.col("count") === df2.col("count_max"))
 
-    (df2.as("df2")
+    df2.as("df2")
       .join(df1.as("df1"), joinCondition, "inner")
       .select("df1.*",
         "count_min",
         "count_max")
-      )
   }
 
   def withCountType(df: DataFrame): DataFrame = {
-    val isMax =(col("count") === col("count_max"))
+    val isMax = col("count") === col("count_max")
     df.withColumn("count_type", when(isMax, lit("max")).otherwise(lit("min")))
   }
 
@@ -113,7 +111,7 @@ object AiJobsIndustry extends App with Context {
     .transform(extractNumReviews)
 
   val companyDF = df1
-    .transform(extractLead(("Company")))
+    .transform(extractLead("Company"))
 
 
   val companyLocDF = df1
@@ -121,30 +119,26 @@ object AiJobsIndustry extends App with Context {
     .transform(extractReviewCount("df1.Company", "Location"))
 
 
-  val statsCompanyDF = (companyLocDF
+  val statsCompanyDF = companyLocDF
     .transform(extractMinMax("df1.Company", "count"))
     .transform(joinMinMax(companyLocDF, "Company"))
     .transform(withCountType)
     .transform(extractColumns("Company"))
-  )
 
 
-  val jobDF = (df1
+  val jobDF = df1
     .transform(extractLead("JobTitle"))
-    )
 
 
-  val jobLocDF = (df1
+  val jobLocDF = df1
     .transform(join2Df(jobDF, "JobTitle"))
     .transform(extractReviewCount("df1.JobTitle", "Location"))
-    )
 
-  val statsJobDF = (jobLocDF
+  val statsJobDF = jobLocDF
     .transform(extractMinMax("df1.JobTitle", "count"))
     .transform(joinMinMax(jobLocDF, "JobTitle"))
     .transform(withCountType)
     .transform(extractColumns("JobTitle"))
-    )
 
   val statsDF = statsJobDF
     .transform(merge2Df(statsCompanyDF))
@@ -398,7 +392,7 @@ object AiJobsIndustry extends App with Context {
     .transform(groupWithCollect)
 
 
-  statsDS.show(20, false)
+  statsDS.show(20, truncate = false)
 //  statsDF.show(20, false)
   spark.stop()
 
