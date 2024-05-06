@@ -5,11 +5,10 @@ import org.apache.spark.sql.expressions._
 
 import scala.Int.MaxValue
 
-
 object AiJobsIndustry extends App with Context {
   override val appName: String = "3_2_Transform_1"
 
-  //part1 DS
+  //part1 DF
   val aiJobsIndustryDF: DataFrame = spark.read
     .option("header", "true")
     .option("inferSchema", "true")
@@ -91,7 +90,6 @@ object AiJobsIndustry extends App with Context {
   }
 
   def collectCol(seqCol: Seq[Column], collectCol: String)(df: DataFrame): DataFrame = {
-    //избыточная трансформация?
     df.groupBy(seqCol:_*)
       .agg(collect_set(collectCol).as(collectCol))
       .select("name",
@@ -146,7 +144,7 @@ object AiJobsIndustry extends App with Context {
       Seq(col("name"), col("stats_type"), col("count"),
         col("count_type")), "location"))
 
-
+  //part2 DS
   case class JobsIndustry(
                            JobTitle: String,
                            Company: String,
@@ -209,16 +207,13 @@ object AiJobsIndustry extends App with Context {
   def findLeader(key: JobIndustryNum => String)(ds: Dataset[JobIndustryNum]): Dataset[GroupInfo]  = {
       ds.groupByKey(key)
       .agg(new Aggregator[JobIndustryNum, Int, Int] {
-        // с чего начинаем вычисления
+
         override def zero: Int = 0
 
-        //вычисление промежуточных результатов
         override def reduce(b: Int, a: JobIndustryNum): Int = b + a.NumReviews
 
-        // объединяем промежуточные результаты, полученные в разных партициях
         override def merge(b1: Int, b2: Int): Int = b1 + b2
 
-        // финальный результат
         override def finish(reduction: Int): Int = reduction
 
         override def bufferEncoder: Encoder[Int] = Encoders.scalaInt
@@ -391,9 +386,9 @@ object AiJobsIndustry extends App with Context {
     .unionByName(statsCompanyDS)
     .transform(groupWithCollect)
 
-
+  //  statsDF.show(20, false)
   statsDS.show(20, truncate = false)
-//  statsDF.show(20, false)
+
   spark.stop()
 
 }
