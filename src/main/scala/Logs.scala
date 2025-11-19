@@ -10,7 +10,6 @@ object Logs extends App with Context {
 
   val sc = spark.sparkContext
   case class Log(
-                      id: Int,
                       host: String,
                       time: Date,
                       response: Int,
@@ -22,7 +21,7 @@ object Logs extends App with Context {
 //    .map(line => line.split(","))
     .filter(values => values(0) != "" && values.length == 7)
     .map(values =>
-        Log(values(0).toInt,
+        Log(
              values(1),
              Date.from(Instant.ofEpochSecond(values(2).toLong)),
              values(5).toInt,

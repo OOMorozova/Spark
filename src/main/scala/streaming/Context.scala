@@ -1,3 +1,5 @@
+package streaming
+
 
 
 import org.apache.spark.sql.SparkSession

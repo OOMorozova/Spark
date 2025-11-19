@@ -2,11 +2,13 @@
 *.log
 /target
 /project
+/spark-cluster
 /resources/data
 /src/main/resources
 /src/test/scala/test.scala
 /src/test/scala/work.sc
 /.idea
 /.bsp
+/out
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
