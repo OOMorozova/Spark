@@ -82,20 +82,13 @@ object Market extends App with Context {
         if (state.exists) state.get
         else empty
       }
-      var totalProducts = currentState.totalProducts
-      var totalPrice = currentState.totalPrice
-      values.foreach(row => {
-        row.event match {
-          case "AddToCart" =>
-            totalProducts +=1
-            totalPrice += row.price
-          case "RemoveFromCart" | "Purchase" =>
-            if (totalProducts > 0) {
-              totalProducts -= 1
-              totalPrice -= row.price
-            }
-          case _ => // do nothing
+      val (totalPrice, totalProducts) = values.foldLeft((currentState.totalPrice, currentState.totalProducts))((accumulator, element) => {
+        element.event match {
+          case "AddToCart" => (accumulator._1 + element.price, accumulator._2 + 1)
+          case "RemoveFromCart" | "Purchase" => (accumulator._1 - element.price, accumulator._2 - 1)
+          case _ => accumulator
         }
+
       })
 
       state.update(StateCart(key, totalProducts, totalPrice))
